@@ -1,5 +1,39 @@
 # @wso2is/features
 
+## 2.26.90
+
+### Patch Changes
+
+- [#8325](https://github.com/wso2/identity-apps/pull/8325) [`8b14783c90f4a5e5f8a1a9026f3b95dbaabe4f5e`](https://github.com/wso2/identity-apps/commit/8b14783c90f4a5e5f8a1a9026f3b95dbaabe4f5e) Thanks [@Malith-19](https://github.com/Malith-19)! - Onboard approval workflow feature to the console
+
+- Updated dependencies [[`8b14783c90f4a5e5f8a1a9026f3b95dbaabe4f5e`](https://github.com/wso2/identity-apps/commit/8b14783c90f4a5e5f8a1a9026f3b95dbaabe4f5e)]:
+  - @wso2is/i18n@2.23.11
+
+## 2.26.89
+
+### Patch Changes
+
+- [#8238](https://github.com/wso2/identity-apps/pull/8238) [`c051cd60349a962f1d9a4e988611a5b9cc63872f`](https://github.com/wso2/identity-apps/commit/c051cd60349a962f1d9a4e988611a5b9cc63872f) Thanks [@DonOmalVindula](https://github.com/DonOmalVindula)! - Bump oxygen-ui version to 2.4.2
+
+- Updated dependencies [[`c051cd60349a962f1d9a4e988611a5b9cc63872f`](https://github.com/wso2/identity-apps/commit/c051cd60349a962f1d9a4e988611a5b9cc63872f)]:
+  - @wso2is/react-components@2.9.16
+  - @wso2is/dynamic-forms@2.4.41
+  - @wso2is/form@2.7.1
+
+## 2.26.88
+
+### Patch Changes
+
+- Updated dependencies [[`725295582b41eab8705a4e821d169499ced1c647`](https://github.com/wso2/identity-apps/commit/725295582b41eab8705a4e821d169499ced1c647)]:
+  - @wso2is/i18n@2.21.2
+
+## 2.26.87
+
+### Patch Changes
+
+- Updated dependencies [[`152e91a6dd4848fe0fb0a0728a1e78fa97a88e12`](https://github.com/wso2/identity-apps/commit/152e91a6dd4848fe0fb0a0728a1e78fa97a88e12)]:
+  - @wso2is/i18n@2.21.1
+
 ## 2.26.86
 
 ### Patch Changes

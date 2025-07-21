@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023-2024, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2023-2025, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -76,6 +76,10 @@ interface ApplicationRolesSettingsInterface extends IdentifiableComponentInterfa
      * Make the component read only.
      */
     readOnly?: boolean;
+    /**
+     * Original template ID of the application for which the roles are created.
+     */
+    originalTemplateId?: string;
 }
 
 /**
@@ -89,6 +93,7 @@ export const ApplicationRoles: FunctionComponent<ApplicationRolesSettingsInterfa
 
     const {
         onUpdate,
+        originalTemplateId,
         readOnly,
         [ "data-componentid" ]: componentId
     } = props;
@@ -544,11 +549,13 @@ export const ApplicationRoles: FunctionComponent<ApplicationRolesSettingsInterfa
                     <ApplicationRoleWizard
                         setUserListRequestLoading={ null }
                         data-testid="user-mgt-add-user-wizard-modal"
+                        data-componentid="user-mgt-add-user-wizard-modal"
                         closeWizard={ () => {
                             setShowWizard(false);
                         } }
                         application={ application }
                         onRoleCreated={ onRoleCreated }
+                        originalTemplateId={ originalTemplateId }
                     />
                 )
             }

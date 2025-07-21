@@ -358,6 +358,12 @@ export const applications: ApplicationsNS = {
             header: "Are you sure?",
             message: "If you revoke this application, authentication flows for this application will " +
                 "stop working. Please proceed with caution."
+        },
+        inProgressReshare: {
+            assertionHint: "Please confirm your action.",
+            content: "This action is irreversible and will discard the application sharing operations currently in progress",
+            header: "Are you sure?",
+            message: "Sharing application with organizations is in progress. Cancelling will terminate the operation."
         }
     },
     dangerZoneGroup: {
@@ -593,7 +599,13 @@ export const applications: ApplicationsNS = {
             },
             sharedAccess: {
                 subTitle: "Select the following options to share the application with the organizations.",
-                tabName: "Shared Access"
+                tabName: "Shared Access",
+                sharedAccessStatusOptions: {
+                    all: "All",
+                    success: "Success",
+                    failed: "Failed",
+                    partiallyCompleted: "Partially Completed"
+                }
             },
             shareApplication: {
                 addSharingNotification: {
@@ -605,6 +617,10 @@ export const applications: ApplicationsNS = {
                         description: "Application shared with the organization(s) successfully",
                         message: "Application shared!"
                     }
+                },
+                addAsyncSharingNotification: {
+                    description: "Application sharing may take a while to complete.",
+                    message: "Application sharing in progress."
                 },
                 getSharedOrganizations: {
                     genericError: {
@@ -634,9 +650,44 @@ export const applications: ApplicationsNS = {
                         message: "Application sharing stopped successfully!"
                     }
                 },
+                completedSharingNotification: {
+                    failure: {
+                        description: "Application sharing completed with failure for all organizations.",
+                        message: "Application sharing failed."
+                    },
+                    success: {
+                        description: "Application was shared with organizations successfully.",
+                        message: "Application sharing successful."
+                    },
+                    partialSuccess: {
+                        description: "Application sharing completed with partial success for some organizations.",
+                        message: "Application sharing partially successful."
+                    }
+                },
                 switchToSelectiveShareFromSharingWithAllSuborgsWarning: "Switching from sharing the app with all organizations to " +
                     "sharing with selected organizations will " +
-                    "reset the application configurations in all organizations."
+                    "reset the application configurations in all organizations.",
+                asyncOperationStatus: {
+                    inProgress: {
+                        heading: "Update In Progress.",
+                        description: "Updating shared access is in progress."
+                    },
+                    failed: {
+                        heading: "Update Failed.",
+                        description: "Updating shared access failed.",
+                        actionText: "View"
+                    },
+                    partiallyCompleted: {
+                        heading: "Update Partialy Successful.",
+                        description: "Updating shared access completed with partial success.",
+                        actionText: "View"
+                    }
+                },
+                applicationShareFailureSummaryDefaultStatus: {
+                    success: "Application shared successfully.",
+                    failed: "Application sharing failed.",
+                    partiallyCompleted: "Application sharing partially completed."
+                }
             },
             signOnMethod: {
                 sections: {
@@ -835,6 +886,10 @@ export const applications: ApplicationsNS = {
                         }
                     },
                     landing: {
+                        banners: {
+                            registrationConfiguration: "Want to customize your organization's user " +
+                                "<1>self-registration</1> flow? Click <3>configure</3> to get started."
+                        },
                         defaultConfig: {
                             description: {
                                 0: "This application is configured with <1>Username & Password</1> Login",
@@ -1027,17 +1082,16 @@ export const applications: ApplicationsNS = {
                         message: "Invalid configuration",
                         description: "Linked local account validation should be enabled to mandate a linked local account"
                     },
-                    heading: "Linked Accounts",
-                    descriptionFederated: "Enable to retrieve user attributes of the linked local account during federated authentication.",
+                    heading: "Attribute Resolution for Linked Accounts",
+                    descriptionFederated: "Manage how user attributes are resolved when a local account is linked to a federated identity.",
                     fields: {
                         validateLocalAccount: {
-                            label: "Prioritize local account attributes",
-                            hint: "If a linked local account exists, its attributes are returned. Otherwise, " +
-                                "attributes of the federated identity are returned."
+                            label: "Use linked local account attributes",
+                            hint: "If a linked local account exists, its attributes will be used. If no linked account is found,attributes of the federated user account will be used instead."
                         },
                         mandateLocalAccount: {
-                            label: "Mandate linked local account",
-                            hint: "Authentication will fail in token exchange grant if there is no linked local account with the federated identity."
+                            label: "Require linked local account",
+                            hint: "Authentication will fail if no linked local account is found during token exchange."
                         }
                     }
                 },
@@ -1601,8 +1655,20 @@ export const applications: ApplicationsNS = {
                         },
                         bindingType: {
                             children: {
+                                cookie: {
+                                    label: "Cookie"
+                                },
+                                clientRequest: {
+                                    label: "Client Request"
+                                },
+                                certificate: {
+                                    label: "Certificate"
+                                },
+                                deviceFlow: {
+                                    label: "Device Flow"
+                                },
                                 ssoBinding: {
-                                    label: "SSO-session"
+                                    label: "SSO Session"
                                 }
                             },
                             description: "Select type <1>SSO-session</1> to allow {{productName}} to " +
@@ -1617,7 +1683,9 @@ export const applications: ApplicationsNS = {
                                     "when the token expires or is revoked.",
                                 sso_session: "Binds the access token to the login session. " +
                                     "{{productName}} will issue a new access token for each new login " +
-                                    "and revoke the token upon logout."
+                                    "and revoke the token upon logout.",
+                                dpop: "Binds the access token to the client's public key. The client must present"+
+                                    " a signed DPoP proof in each request to prove posession of the corresponding private key."
                             }
                         },
                         expiry: {
@@ -3248,6 +3316,15 @@ export const applications: ApplicationsNS = {
                         }
                     }
                 }
+            }
+        },
+        sharedAccessStatus: {
+            heading: "Summary - Update application shared access",
+            subHeading: "Summary of detailed application sharing failures.",
+            actionText: "Close",
+            banner: {
+                partiallyCompleted: "Partially Completed: ",
+                failed: "Failed: "
             }
         }
     },

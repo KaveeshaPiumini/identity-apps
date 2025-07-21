@@ -41,11 +41,13 @@ import { userstoresConfig } from "@wso2is/admin.extensions.v1/configs";
 import { administratorConfig } from "@wso2is/admin.extensions.v1/configs/administrator";
 import FeatureGateConstants from "@wso2is/admin.feature-gate.v1/constants/feature-gate-constants";
 import { useGetCurrentOrganizationType } from "@wso2is/admin.organizations.v1/hooks/use-get-organization-type";
+import { deleteGuestUser } from "@wso2is/admin.users.v1/api";
 import { useInvitedUsersList } from "@wso2is/admin.users.v1/api/invite";
 import { UserInviteInterface } from "@wso2is/admin.users.v1/components/guests/models/invite";
 import { AdminAccountTypes, InvitationStatus, UserManagementConstants } from "@wso2is/admin.users.v1/constants";
 import { resolveUserSearchAttributes } from "@wso2is/admin.users.v1/utils";
 import { UserStoreDropdownItem } from "@wso2is/admin.userstores.v1/models";
+import { isFeatureEnabled } from "@wso2is/core/helpers";
 import {
     AlertInterface,
     AlertLevels,
@@ -61,6 +63,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { Dispatch } from "redux";
 import { Dropdown, DropdownItemProps, DropdownProps, Icon, PaginationProps } from "semantic-ui-react";
 import AdministratorsTable from "./administrators-table";
+import { ConsoleAdministratorOnboardingConstants } from "../../../constants/console-administrator-onboarding-constants";
 import useAdministrators from "../../../hooks/use-administrators";
 import useBulkAssignAdministratorRoles from "../../../hooks/use-bulk-assign-user-roles";
 import AddExistingUserWizard from "../add-existing-user-wizard/add-existing-user-wizard";
@@ -182,6 +185,8 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                 ? primaryUserStoreDomainName
                 : userstoresConfig?.primaryUserstoreName
         );
+        // Resets the invitation status option when the selected administrator group changes.
+        setInvitationStatusOption(InvitationStatus.ACCEPTED);
     },[ isPrivilegedUsersInConsoleSettingsEnabled, selectedAdministratorGroup ]);
 
     const {
@@ -204,6 +209,10 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
     const organizationName: string = store.getState().auth.tenantDomain;
 
     const saasFeatureStatus: FeatureStatus = useCheckFeatureStatus(FeatureGateConstants.SAAS_FEATURES_IDENTIFIER);
+
+    const isCentralDeploymentEnabled: boolean = useSelector((state: AppState) => {
+        return state?.config?.deployment?.centralDeploymentEnabled;
+    });
 
     const {
         data: OrganizationConfig,
@@ -288,6 +297,29 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                 );
             }
         );
+    };
+
+    const handleGuestUserDelete = (user: UserBasicInterface & UserRoleInterface, onComplete: () => void): void => {
+        deleteGuestUser(user.id).then(() => {
+            onComplete();
+            mutateGuestUserListFetchRequest();
+            dispatch(
+                addAlert<AlertInterface>({
+                    description: t("users:notifications.revokeAdmin.success.description"),
+                    level: AlertLevels.SUCCESS,
+                    message: t("users:notifications.revokeAdmin.success.message")
+                })
+            );
+        }
+        ).catch(() => {
+            dispatch(
+                addAlert<AlertInterface>({
+                    description: t("users:notifications.revokeAdmin.genericError.description"),
+                    level: AlertLevels.ERROR,
+                    message: t("users:notifications.revokeAdmin.genericError.message")
+                })
+            );
+        });
     };
 
     const handleAccountStatusChange = (event: MouseEvent<HTMLAnchorElement>, data: DropdownProps): void => {
@@ -501,7 +533,9 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
             } }
             rightActionPanel={ renderRightActionPanel() }
             topActionPanelExtension={ (
-                <Show
+                isFeatureEnabled(consoleSettingsFeatureConfig,
+                    ConsoleAdministratorOnboardingConstants.FEATURE_DICTIONARY
+                        .get("CONSOLE_SETTINGS_ADD_ADMINISTRATOR")) && (<Show
                     when={
                         [ ...featureConfig?.users?.scopes?.create,
                             ...featureConfig?.userRoles?.scopes?.update
@@ -515,7 +549,7 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                         </Button>
                     ) }
                     { renderAdministratorAddOptions() }
-                </Show>
+                </Show>)
             ) }
         >
             { invitationStatusOption === InvitationStatus.ACCEPTED ? adminUserListFetchError ? (
@@ -531,7 +565,9 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                     defaultListItemLimit={ defaultListItemLimit }
                     administrators={ administrators }
                     onUserEdit={ handleUserEdit }
-                    onUserDelete={ handleUserDelete }
+                    onUserDelete={ isCentralDeploymentEnabled &&
+                        selectedUserStore !== userstoresConfig?.primaryUserstoreName  ?
+                        handleGuestUserDelete : handleUserDelete }
                     isLoading={ loading }
                     readOnlyUserStores={ readOnlyUserStores }
                     onSearchQueryClear={ handleSearchQueryClear }
@@ -577,6 +613,7 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                 <AddExistingUserWizard
                     onSuccess={ () => mutateAdministratorsListFetchRequest() }
                     onClose={ () => setShowAddExistingUserWizard(false) }
+                    selectedUserStore={ selectedUserStore }
                 />
             ) }
             { showInviteNewAdministratorModal && (
@@ -590,9 +627,6 @@ const AdministratorsList: FunctionComponent<AdministratorsListProps> = (
                     closeWizard={ () => {
                         setShowAddExternalAdminWizard(false);
                     } }
-                    updateList={ () => mutateGuestUserListFetchRequest() }
-                    rolesList={ [] }
-                    emailVerificationEnabled={ true }
                     onInvitationSendSuccessful={ () => {
                         mutateGuestUserListFetchRequest();
                         eventPublisher.publish("manage-users-finish-creating-collaborator-user");

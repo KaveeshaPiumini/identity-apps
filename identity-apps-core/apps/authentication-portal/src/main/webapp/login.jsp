@@ -1,5 +1,5 @@
 <%--
-  ~ Copyright (c) 2023, WSO2 LLC. (https://www.wso2.com).
+  ~ Copyright (c) 2023-2025, WSO2 LLC. (https://www.wso2.com).
   ~
   ~ WSO2 LLC. licenses this file to you under the Apache License,
   ~ Version 2.0 (the "License"); you may not use this file except
@@ -18,6 +18,8 @@
 
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="org.apache.commons.collections.CollectionUtils" %>
+<%@ page import="org.apache.commons.httpclient.HttpURL" %>
+<%@ page import="org.apache.commons.httpclient.HttpsURL" %>
 <%@ page import="org.wso2.carbon.identity.application.authentication.endpoint.util.EndpointConfigManager" %>
 <%@ page import="org.wso2.carbon.identity.application.authentication.endpoint.util.AuthContextAPIClient" %>
 <%@ page import="org.wso2.carbon.identity.application.authentication.endpoint.util.Constants" %>
@@ -54,6 +56,9 @@
 <%-- Include tenant context --%>
 <jsp:directive.include file="includes/init-url.jsp"/>
 
+<%-- Include registration portal URL resolver --%>
+<jsp:directive.include file="util/registration-portal-url-resolver.jsp"/>
+
 <%
     // Add the login screen to the list to retrieve text branding customizations.
     screenNames.add("login");
@@ -71,7 +76,6 @@
     private static final String IS_SAAS_APP = "isSaaSApp";
     private static final String BASIC_AUTHENTICATOR = "BasicAuthenticator";
     private static final String IDENTIFIER_EXECUTOR = "IdentifierExecutor";
-    private static final String OPEN_ID_AUTHENTICATOR = "OpenIDAuthenticator";
     private static final String JWT_BASIC_AUTHENTICATOR = "JWTBasicAuthenticator";
     private static final String X509_CERTIFICATE_AUTHENTICATOR = "x509CertificateAuthenticator";
     private static final String GOOGLE_AUTHENTICATOR = "GoogleOIDCAuthenticator";
@@ -181,7 +185,7 @@
     List<String> localAuthenticatorNames = new ArrayList<String>();
     List<String> registeredLocalAuthenticators = Arrays.asList(
         BACKUP_CODE_AUTHENTICATOR, TOTP_AUTHENTICATOR, EMAIL_OTP_AUTHENTICATOR,
-        MAGIC_LINK_AUTHENTICATOR,SMS_OTP_AUTHENTICATOR,OPEN_ID_AUTHENTICATOR,
+        MAGIC_LINK_AUTHENTICATOR,SMS_OTP_AUTHENTICATOR,
         IDENTIFIER_EXECUTOR,JWT_BASIC_AUTHENTICATOR,BASIC_AUTHENTICATOR,
         IWA_AUTHENTICATOR,X509_CERTIFICATE_AUTHENTICATOR,FIDO_AUTHENTICATOR,
         PUSH_NOTIFICATION_AUTHENTICATOR
@@ -343,14 +347,7 @@
             selfSignUpOverrideURL = selfSignUpOverrideURL.concat("?ui_locales=" + localeString);
         }
     }
-
-    if (!StringUtils.isBlank(passwordRecoveryOverrideURL)) {
-        if (passwordRecoveryOverrideURL.contains("?")) {
-            passwordRecoveryOverrideURL = passwordRecoveryOverrideURL.concat("&ui_locales=" + localeString);
-        } else {
-            passwordRecoveryOverrideURL = passwordRecoveryOverrideURL.concat("?ui_locales=" + localeString);
-        }
-    }
+    passwordRecoveryOverrideURL = getRecoveryPortalUrl(passwordRecoveryOverrideURL, recoveryPortalOverrideURL, localeString);
 %>
 
 <%
@@ -433,6 +430,7 @@
     }
 %>
 
+<% request.setAttribute("pageName", "sign-in"); %>
 
 <!doctype html>
 <html lang="en-US">
@@ -466,16 +464,18 @@
     <%
         }
     %>
+
 </head>
-<body class="login-portal layout authentication-portal-layout" onload="checkSessionKey()">
-    <% request.setAttribute("pageName", "sign-in"); %>
+
+<body class="login-portal layout authentication-portal-layout" onload="checkSessionKey()" data-page="<%= request.getAttribute("pageName") %>">
+
     <% if (new File(getServletContext().getRealPath("extensions/timeout.jsp")).exists()) { %>
         <jsp:include page="extensions/timeout.jsp"/>
     <% } else { %>
         <jsp:include page="util/timeout.jsp"/>
     <% } %>
 
-    <layout:main layoutName="<%= layout %>" layoutFileRelativePath="<%= layoutFileRelativePath %>" data="<%= layoutData %>" >
+    <layout:main layoutName="<%= layout %>" layoutFileRelativePath="<%= layoutFileRelativePath %>" data="<%= layoutData %>">
         <layout:component componentName="ProductHeader">
             <%
                 if (StringUtils.equals(tenantForTheming, IdentityManagementEndpointConstants.SUPER_TENANT) &&
@@ -529,8 +529,8 @@
                             class="ellipsis"
                             data-position="top left"
                             data-variation="inverted"
-                            data-content="<%=sanitizeUserName%>">
-                        <%=sanitizeUserName%>
+                            data-content="<%=Encode.forHtmlAttribute(sanitizeUserName)%>">
+                        <%=Encode.forHtmlContent(sanitizeUserName)%>
                     </span>
                 </div>
                 <% } %>
@@ -538,12 +538,7 @@
                 <div class="segment-form">
                     <%
                         if (localAuthenticatorNames.size() > 0) {
-                            if (localAuthenticatorNames.contains(OPEN_ID_AUTHENTICATOR)) {
-                                hasLocalLoginOptions = true;
-                    %>
-                        <%@ include file="openid.jsp" %>
-                    <%
-                        } else if (localAuthenticatorNames.contains(IDENTIFIER_EXECUTOR)) {
+                            if (localAuthenticatorNames.contains(IDENTIFIER_EXECUTOR)) {
                             hasLocalLoginOptions = true;
                     %>
                         <%@ include file="identifierauth.jsp" %>
@@ -714,22 +709,14 @@
                                     <br>
                                 <% } else if (isGoogleIdp) { %>
                                     <div class="social-login blurring social-dimmer">
-                                        <div
-                                            class="ui basic segment google-one-tap-loader"
-                                            id="googleSignInLoading"
-                                            data-testid="login-page-sign-in-with-google-loader"
-                                        >
-                                            <div class="ui active inverted dimmer">
-                                                <div class="ui small loader"></div>
-                                            </div>
-                                        </div>
-                                        <div class="field" id="googleSignIn" style="display: none;">
-                                            <button type="button"
-                                                    class="ui button"
-                                                    data-testid="login-page-sign-in-with-google"
-                                                    onclick="handleNoDomain(this,
-                                                                '<%=Encode.forJavaScriptAttribute(Encode.forUriComponent(idpName))%>',
-                                                                '<%=Encode.forJavaScriptAttribute(Encode.forUriComponent(idpEntry.getValue()))%>')"
+                                        <div class="field" id="googleSignIn">
+                                            <button
+                                                type="button"
+                                                class="ui button"
+                                                data-testid="login-page-sign-in-with-google"
+                                                onclick="handleNoDomain(this,
+                                                    '<%=Encode.forJavaScriptAttribute(Encode.forUriComponent(idpName))%>',
+                                                    '<%=Encode.forJavaScriptAttribute(Encode.forUriComponent(idpEntry.getValue()))%>')"
                                             >
                                                 <img
                                                     class="ui image"
@@ -743,9 +730,7 @@
 
                                     <% if (GOOGLE_ONE_TAP_ENABLED) { %>
 
-                                        <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-                                        <div id="google_parent" class="google-one-tap-container"></div>
+                                        <script src="https://accounts.google.com/gsi/client" defer></script>
 
                                         <form action="<%=GOOGLE_CALLBACK_URL%>" method="post" id="googleOneTapForm" style="display: none;">
                                             <input type="hidden" name="state" value="<%=Encode.forHtmlAttribute(request.getParameter("sessionDataKey"))%>"/>
@@ -757,51 +742,16 @@
                                         </form>
 
                                         <script>
+                                            document.addEventListener("DOMContentLoaded", function() {
 
-                                            if (navigator) {
-                                                var userAgent = navigator.userAgent;
-                                                var browserName = void 0;
-                                                var restrictedBrowsersForGOT = "<%=restrictedBrowsersForGOT%>";
-
-                                                if (userAgent.match(/chrome|chromium|crios/i)) {
-                                                    browserName = "chrome";
-                                                } else if (userAgent.match(/firefox|fxios/i)) {
-                                                    browserName = "firefox";
-                                                } else if (userAgent.match(/safari/i)) {
-                                                    browserName = "safari";
-                                                } else if (userAgent.match(/opr\//i)) {
-                                                    browserName = "opera";
-                                                } else if (userAgent.match(/edg/i)) {
-                                                    browserName = "edge";
-                                                } else {
-                                                    browserName = "No browser detection";
-                                                }
-
-                                                if (restrictedBrowsersForGOT !== null
-                                                    && restrictedBrowsersForGOT.trim() !== ''
-                                                    && restrictedBrowsersForGOT.toLowerCase().includes(browserName)) {
-                                                        document.getElementById("googleSignInLoading").style.display = "none";
-                                                        document.getElementById("googleSignIn").style.display = "block";
-                                                } else {
-                                                    window.onload = function callGoogleOneTap() {
-                                                        google.accounts.id.initialize({
-                                                            client_id: "<%=Encode.forJavaScriptAttribute(GOOGLE_CLIENT_ID)%>",
-                                                            prompt_parent_id: "google_parent",
-                                                            cancel_on_tap_outside: false,
-                                                            nonce: "<%=Encode.forJavaScriptAttribute(request.getParameter("sessionDataKey"))%>",
-                                                            callback: handleCredentialResponse
-                                                        });
-                                                        google.accounts.id.prompt((notification) => {
-                                                             onMoment(notification);
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        </script>
-                                    <%} else {%>
-                                        <script>
-                                           document.getElementById("googleSignInLoading").style.display = "none";
-                                           document.getElementById("googleSignIn").style.display = "block";
+                                                google.accounts.id.initialize({
+                                                    client_id: "<%=Encode.forJavaScriptAttribute(GOOGLE_CLIENT_ID)%>",
+                                                    cancel_on_tap_outside: false,
+                                                    nonce: "<%=Encode.forJavaScriptAttribute(request.getParameter("sessionDataKey"))%>",
+                                                    callback: handleCredentialResponse
+                                                });
+                                                google.accounts.id.prompt();
+                                            });
                                         </script>
                                     <%} %>
                                     <br>
@@ -1114,7 +1064,7 @@
                                     }
 
                                     if (localAuthenticator.startsWith(CUSTOM_LOCAL_AUTHENTICATOR_PREFIX)) {
-                                       
+
                                         String customLocalAuthenticatorImageURL = "libs/themes/default/assets/images/authenticators/custom-authenticator.svg";
                                         String customLocalAuthenticatorDisplayName = localAuthenticator;
                                         Map<String, String> authenticatorConfigMap = new HashMap<>();
@@ -1125,9 +1075,9 @@
                                             // Exception is ignored and the default values will be used as a fallback.
                                         }
 
-                                        if (MapUtils.isNotEmpty(authenticatorConfigMap) && authenticatorConfigMap.containsKey("definedBy") 
+                                        if (MapUtils.isNotEmpty(authenticatorConfigMap) && authenticatorConfigMap.containsKey("definedBy")
                                             && authenticatorConfigMap.get("definedBy").equals("USER")) {
-                                            
+
                                             if (authenticatorConfigMap.containsKey("image")) {
                                                 customLocalAuthenticatorImageURL = authenticatorConfigMap.get("image");
                                             }
@@ -1159,8 +1109,8 @@
                             <br>
                             <br>
                             <%
-                                            continue;   
-                                        } 
+                                            continue;
+                                        }
                                     }
                             %>
                                 <div class="social-login blurring social-dimmer">
@@ -1276,6 +1226,9 @@
                                     String uri = (String) request.getAttribute(JAVAX_SERVLET_FORWARD_REQUEST_URI);
                                     String prmstr = (String) request.getAttribute(JAVAX_SERVLET_FORWARD_QUERY_STRING);
                                     String urlWithoutEncoding = scheme + "://" +serverName + ":" + serverPort + uri + "?" + prmstr;
+                                    if ((scheme == "http" && serverPort == HttpURL.DEFAULT_PORT) || (scheme == "https" && serverPort == HttpsURL.DEFAULT_PORT)) {
+                                        urlWithoutEncoding = scheme + "://" + serverName + uri + "?" + prmstr;
+                                    }
                                     urlEncodedURL = URLEncoder.encode(urlWithoutEncoding, UTF_8);
                                     urlParameters = prmstr;
                                 } else {
@@ -1291,7 +1244,7 @@
                                     <%=AuthenticationEndpointUtil.i18n(resourceBundle, "dont.have.an.account")%>
                                     <a
                                         onclick="handleSignupClick()"
-                                        href="<%=getRegistrationUrl(accountRegistrationEndpointContextURL, urlEncodedURL, urlParameters)%>"
+                                        href="<%=getRegistrationPortalUrl(accountRegistrationEndpointContextURL, urlEncodedURL, urlParameters)%>"
                                         target="_self"
                                         class="clickable-link"
                                         rel="noopener noreferrer"
@@ -1320,7 +1273,7 @@
                                         <% if(StringUtils.isNotBlank(selfSignUpOverrideURL)) { %>
                                         onclick="window.location.href='<%=i18nLink(userLocale, selfSignUpOverrideURL)%>';"
                                         <% } else { %>
-                                        onclick="window.location.href='<%=StringEscapeUtils.escapeHtml4(getRegistrationUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, urlParameters))%>';"
+                                        onclick="window.location.href='<%=StringEscapeUtils.escapeHtml4(getRegistrationPortalUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, urlParameters))%>';"
                                         <% } %>
                                         class="ui large fluid button secondary"
                                         id="registerLink"
@@ -1367,53 +1320,8 @@
 
         <% if (Boolean.parseBoolean(request.getParameter("isSelfRegistration"))) { %>
                 $(".ui.segment").hide();
-                window.location = "<%=getRegistrationUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, (String) request.getAttribute(JAVAX_SERVLET_FORWARD_QUERY_STRING))%>";
+                window.location = "<%=getRegistrationPortalUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, (String) request.getAttribute(JAVAX_SERVLET_FORWARD_QUERY_STRING))%>";
         <% } %>
-
-        function onMoment(notification) {
-            displayGoogleSignIn(notification.isNotDisplayed() || notification.isSkippedMoment());
-
-            const observed = document.querySelector('#credential_picker_container');
-
-            if (observed != null && notification.isDisplayed()) {
-                let style = window.getComputedStyle(observed);
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.find(function(mutation) {
-                        if (style.display == "none") {
-                          displayGoogleSignIn(true);
-                        }
-                        return true;
-                    });
-                    observer.takeRecords();
-                    observer.disconnect();
-                });
-                observer.observe(observed, {
-                    attributesList: ["style"],
-                    attributes: true,
-                    subtree: true,
-                    childList: true
-                });
-            }
-
-            var googleOneTapLoadingElement = document.getElementById("googleSignInLoading");
-            if (googleOneTapLoadingElement != null) {
-                googleOneTapLoadingElement.style.display = "none";
-            }
-
-            // Add loaded class to google_parent element to animate the google one tap container.
-            document.getElementById("google_parent").classList.add('loaded');
-        }
-
-        function displayGoogleSignIn(display) {
-            var element = document.getElementById("googleSignIn");
-            if (element != null) {
-                if (display) {
-                    element.style.display = "block";
-                } else {
-                    element.style.display = "none";
-                }
-            }
-        }
 
         function handleCredentialResponse(response) {
             $('#credential').val(response.credential);
@@ -1561,7 +1469,7 @@
                 var baseLocation = "<%=commonauthURL%>?idp=" + key + "&authenticator=" + value +
                     "&sessionDataKey=<%=Encode.forUriComponent(request.getParameter("sessionDataKey"))%>";
 
-                if ("<%=username%>" !== "null" && "<%=username%>".length > 0) {
+                if ("<%=Encode.forJavaScript(username)%>" !== "null" && "<%=Encode.forJavaScript(username)%>".length > 0) {
                     document.location = baseLocation + "&username=" + "<%=Encode.forUriComponent(username)%>" + "<%=multiOptionURIParam%>";
                 } else {
                     document.location = baseLocation + "<%=multiOptionURIParam%>";

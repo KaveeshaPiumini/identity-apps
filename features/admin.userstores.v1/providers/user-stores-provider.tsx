@@ -52,11 +52,16 @@ const UserStoresProvider: FunctionComponent<UserStoresProviderProps> = (
 
     const requiredUserStoreAttributes: string[] = [
         UserStoreManagementConstants.USER_STORE_PROPERTY_READ_ONLY,
-        UserStoreManagementConstants.USER_STORE_PROPERTY_BULK_IMPORT_SUPPORTED
+        UserStoreManagementConstants.USER_STORE_PROPERTY_DISABLED,
+        UserStoreManagementConstants.USER_STORE_PROPERTY_BULK_IMPORT_SUPPORTED,
+        UserStoreManagementConstants.USER_STORE_PROPERTY_IS_BULK_IMPORT_SUPPORTED
     ];
 
     const userStoreFeatureConfig: FeatureAccessConfigInterface = useSelector(
         (state: AppState) => state?.config?.ui?.features?.userStores);
+    const hiddenUserStoreNames: string[] = useSelector((state: AppState) => state?.config?.ui?.hiddenUserStores);
+    const primaryUserStoreDomainName: string = useSelector(
+        (state: AppState) => state?.config?.ui?.primaryUserStoreDomainName);
 
     const hasUserStoresReadPermission: boolean = useRequiredScopes(userStoreFeatureConfig?.scopes?.read);
 
@@ -157,6 +162,16 @@ const UserStoresProvider: FunctionComponent<UserStoresProviderProps> = (
     };
 
     /**
+     * Utility function to check if the user store is hidden.
+     *
+     * @param userStoreName - Name of the user store to be evaluated.
+     * @returns whether the user store is hidden or not.
+     */
+    const isUserStoreHidden = (userStoreName: string): boolean => {
+        return hiddenUserStoreNames.includes(userStoreName.toUpperCase());
+    };
+
+    /**
      * Utility function to mutate the user store list.
      * Since there is a delay in updating user stores,
      * capability to mutate the user store list with a delay is added.
@@ -169,10 +184,60 @@ const UserStoresProvider: FunctionComponent<UserStoresProviderProps> = (
         }, delay);
     };
 
+    /**
+     * Utility function to filter the user stores.
+     *
+     * @param includeHiddenUserStores - Whether to include hidden user stores or not.
+     * @param includeDisabledUserStores - Whether to include disabled user stores or not.
+     * @param includeReadOnlyUserStores - Whether to include read only user stores or not.
+     * @param includePrimaryUserStore - Whether to include the primary user store or not.
+     * @returns filtered user stores.
+     */
+    const filterUserStores = (
+        includeHiddenUserStores: boolean = false,
+        includeDisabledUserStores: boolean = false,
+        includeReadOnlyUserStores: boolean = true,
+        includePrimaryUserStore: boolean = false
+    ): UserStoreListItem[] => {
+        const filteredUserStores: UserStoreListItem[] = [];
+
+        if (!fetchedUserStores) {
+            return filteredUserStores;
+        }
+
+        if (includePrimaryUserStore
+            && userstoresConfig?.primaryUserstoreName === primaryUserStoreDomainName
+            && shouldFetchPrimaryUserStore
+            && primaryUserStoreDetails) {
+            filteredUserStores.push(primaryUserStoreDetails as unknown as UserStoreListItem);
+        }
+
+        for (const userStore of fetchedUserStores) {
+            if (!includeHiddenUserStores && isUserStoreHidden(userStore.name)) {
+                continue;
+            }
+
+            if (!includeDisabledUserStores && !userStore.enabled) {
+                continue;
+            }
+
+            if (!includeReadOnlyUserStores && isUserStoreReadOnly(userStore.name)) {
+                continue;
+            }
+
+            filteredUserStores.push(userStore);
+        }
+
+        return filteredUserStores;
+    };
+
     return (
         <UserStoresContext.Provider
             value={ {
+                filterUserStores,
+                hiddenUserStoreNamesList: hiddenUserStoreNames,
                 isLoading: isUserStoreGetRequestLoading || !readOnlyUserStoreNames,
+                isUserStoreHidden,
                 isUserStoreReadOnly,
                 mutateUserStoreList,
                 readOnlyUserStoreNamesList: readOnlyUserStoreNames,

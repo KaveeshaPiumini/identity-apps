@@ -22,7 +22,7 @@ import Divider from "@oxygen-ui/react/Divider";
 import FormLabel from "@oxygen-ui/react/FormLabel";
 import Skeleton from "@oxygen-ui/react/Skeleton";
 import Typography from "@oxygen-ui/react/Typography";
-import { FeatureAccessConfigInterface, useRequiredScopes } from "@wso2is/access-control";
+import { FeatureAccessConfigInterface } from "@wso2is/access-control";
 import { AppState } from "@wso2is/admin.core.v1/store";
 import useGetRulesMeta from "@wso2is/admin.rules.v1/api/use-get-rules-meta";
 import { RuleExecuteCollectionWithoutIdInterface, RuleWithoutIdInterface } from "@wso2is/admin.rules.v1/models/rules";
@@ -33,7 +33,6 @@ import {
     FinalForm,
     FinalFormField,
     FormRenderProps,
-    FormSpy,
     SelectFieldAdapter
 } from "@wso2is/form";
 import { DropdownChild } from "@wso2is/forms";
@@ -42,9 +41,10 @@ import { AxiosError } from "axios";
 import React, { FunctionComponent, ReactElement, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
-import { ActionCertificatesListComponent } from "./certificate/action-certificate-list";
+import { ActionCertificateComponent } from "./certificate/action-certificate";
 import CommonActionConfigForm from "./common-action-config-form";
 import RuleConfigForm from "./rule-config-form";
+import UserAttributeList from "./user-attributes/user-attribute-list";
 import createAction from "../api/create-action";
 import updateAction from "../api/update-action";
 import useGetActionById from "../api/use-get-action-by-id";
@@ -74,6 +74,10 @@ interface PreUpdatePasswordActionConfigFormInterface extends IdentifiableCompone
      */
     isLoading?: boolean;
     /**
+     * Specifies whether the form is read-only.
+     */
+    isReadOnly: boolean;
+    /**
      * Action Type of the Action.
      */
     actionTypeApiPath: string;
@@ -86,6 +90,7 @@ interface PreUpdatePasswordActionConfigFormInterface extends IdentifiableCompone
 const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActionConfigFormInterface> = ({
     initialValues,
     isLoading,
+    isReadOnly,
     actionTypeApiPath,
     isCreateFormState,
     ["data-componentid"]: _componentId = "pre-update-password-action-config-form"
@@ -95,6 +100,8 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
         (state: AppState) => state.config.ui.features.actions);
     const [ isAuthenticationUpdateFormState, setIsAuthenticationUpdateFormState ] = useState<boolean>(false);
     const [ authenticationType, setAuthenticationType ] = useState<AuthenticationType>(null);
+    const [ isUserAttributesChanged, setIsUserAttributesChanged ] = useState<boolean>(false);
+    const [ userAttributeList, setUserAttributeList ] = useState<string[]>([]);
     const [ isSubmitting, setIsSubmitting ] = useState<boolean>(false);
     const [ PEMValue, setPEMValue ] = useState<string>(undefined);
     const [ isHasRule, setIsHasRule ] = useState<boolean>(false);
@@ -104,9 +111,6 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
 
     const handleSuccess: (operation: string) => void = useHandleSuccess();
     const handleError: (error: AxiosError, operation: string) => void = useHandleError();
-
-    const hasActionUpdatePermissions: boolean = useRequiredScopes(actionsFeatureConfig?.scopes?.update);
-    const hasActionCreatePermissions: boolean = useRequiredScopes(actionsFeatureConfig?.scopes?.create);
 
     const {
         mutate: mutateActions
@@ -157,12 +161,23 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
         </Box>
     );
 
-    const getFieldDisabledStatus = (): boolean => {
-        if (isCreateFormState) {
-            return !hasActionCreatePermissions;
-        } else {
-            return !hasActionUpdatePermissions;
+    /**
+     * Callback to be triggered when the user attribute list is updated.
+     *
+     * The final user attribute list is updated only if the user has made changes to the initial list.
+     * @param hasChanged - Flag to indicate whether the user has made changes to the initial list.
+     * @param changedAttributes - Updated attribute list.
+     */
+    const handleUserAttributeChange = (hasChanged: boolean, changedAttributes: string[]) => {
+
+        if (!hasChanged) {
+            setIsUserAttributesChanged(false);
+
+            return;
         }
+
+        setIsUserAttributesChanged(true);
+        setUserAttributeList([ ...changedAttributes ]);
     };
 
     const validateForm = (values: PreUpdatePasswordActionConfigFormPropertyInterface):
@@ -224,6 +239,7 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
 
         if (isCreateFormState) {
             const actionValues: PreUpdatePasswordActionInterface = {
+                attributes: userAttributeList,
                 endpoint: {
                     authentication: {
                         properties: authProperties,
@@ -254,6 +270,7 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
         } else {
             // Updating the action
             const updatingValues: PreUpdatePasswordActionUpdateInterface = {
+                attributes: isUserAttributesChanged ? userAttributeList : undefined,
                 endpoint: isAuthenticationUpdateFormState || changedFields?.endpointUri ? {
                     authentication: isAuthenticationUpdateFormState ? {
                         properties: authProperties,
@@ -295,6 +312,7 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
                 <CommonActionConfigForm
                     initialValues={ initialValues }
                     isCreateFormState={ isCreateFormState }
+                    isReadOnly={ isReadOnly }
                     onAuthenticationTypeChange={ (updatedValue: AuthenticationType, change: boolean) => {
                         setAuthenticationType(updatedValue);
                         setIsAuthenticationUpdateFormState(change);
@@ -330,12 +348,12 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
                         ]
                     }
                     clearable={ true }
-                    disabled={ getFieldDisabledStatus() }
+                    disabled={ isReadOnly }
                 />
                 <FormLabel className="certificate-label" >
                     { t("actions:fields.passwordSharing.certificate.label") }
                 </FormLabel>
-                <ActionCertificatesListComponent
+                <ActionCertificateComponent
                     updatePEMValue={ (val: string) => {
                         setPEMValue(val);
                     } }
@@ -346,16 +364,28 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
                     certificate={ PEMValue }
                     actionTypeApiPath={ actionTypeApiPath }
                     actionId={ initialValues?.id }
-                    readOnly={ getFieldDisabledStatus() }
+                    readOnly={ isReadOnly }
+                    data-componentid={ `${ _componentId }-certificate` }
+                />
+                <Divider className="divider-container" />
+                <Typography variant="h6" className="heading-container" >
+                    { t("actions:fields.userAttributes.heading") }
+                </Typography>
+                <UserAttributeList
+                    initialValues={ initialValues?.attributes }
+                    onAttributesChange={ handleUserAttributeChange }
+                    isReadOnly={ isReadOnly }
+                    data-componentid={ `${ _componentId }-user-attributes` }
                 />
                 { RuleExpressionsMetaData && showRuleComponent && (
                     <RuleConfigForm
-                        readonly={ getFieldDisabledStatus() }
+                        readonly={ isReadOnly }
                         rule={ rule }
                         ruleActionType={ actionTypeApiPath }
                         setRule={ setRule }
                         isHasRule={ isHasRule }
                         setIsHasRule={ setIsHasRule }
+                        data-componentid={ `${ _componentId }-rule` }
                     />
                 ) }
             </>
@@ -372,103 +402,36 @@ const PreUpdatePasswordActionConfigForm: FunctionComponent<PreUpdatePasswordActi
                     <FinalForm
                         onSubmit={ (values: PreUpdatePasswordActionConfigFormPropertyInterface, form: any) => {
                             handleSubmit(values, form.getState().dirtyFields);
-                        }
-                        }
+                        } }
                         validate={ validateForm }
                         initialValues={ initialValues }
-                        render={ ({ handleSubmit, form }: FormRenderProps) => (
-                            <form onSubmit={ handleSubmit }>
-                                <EmphasizedSegment
-                                    className="form-wrapper"
-                                    padded={ "very" }
-                                    data-componentid={ `${_componentId}-section` }
-                                >
-                                    <div className="form-container with-max-width">
-                                        { renderFormFields() }
-                                        { !isLoading && (
-                                            <Button
-                                                size="medium"
-                                                variant="contained"
-                                                onClick={ handleSubmit }
-                                                className={ "button-container" }
-                                                data-componentid={ `${_componentId}-primary-button` }
-                                                loading={ isSubmitting }
-                                                disabled={ getFieldDisabledStatus() }
-                                            >
-                                                {
-                                                    isCreateFormState
-                                                        ? t("actions:buttons.create")
-                                                        : t("actions:buttons.update")
-                                                }
-                                            </Button>
-                                        ) }
-                                    </div>
-                                </EmphasizedSegment>
-                                <FormSpy
-                                    subscription={ { values: true } }
-                                >
-                                    { ({ values }: { values: ActionConfigFormPropertyInterface }) => {
-                                        if (!isAuthenticationUpdateFormState) {
-                                            form.change("authenticationType",
-                                                initialValues?.authenticationType);
-                                            switch (authenticationType) {
-                                                case AuthenticationType.BASIC:
-                                                    delete values.usernameAuthProperty;
-                                                    delete values.passwordAuthProperty;
-
-                                                    break;
-                                                case AuthenticationType.BEARER:
-                                                    delete values.accessTokenAuthProperty;
-
-                                                    break;
-                                                case AuthenticationType.API_KEY:
-                                                    delete values.headerAuthProperty;
-                                                    delete values.valueAuthProperty;
-
-                                                    break;
-                                                default:
-                                                    break;
+                        render={ ({ handleSubmit }: FormRenderProps) => (
+                            <EmphasizedSegment
+                                className="form-wrapper"
+                                padded={ "very" }
+                                data-componentid={ `${_componentId}-section` }
+                            >
+                                <div className="form-container with-max-width">
+                                    { renderFormFields() }
+                                    { !isLoading && (
+                                        <Button
+                                            size="medium"
+                                            variant="contained"
+                                            onClick={ handleSubmit }
+                                            className={ "button-container" }
+                                            data-componentid={ `${_componentId}-primary-button` }
+                                            loading={ isSubmitting }
+                                            disabled={ isReadOnly }
+                                        >
+                                            {
+                                                isCreateFormState
+                                                    ? t("actions:buttons.create")
+                                                    : t("actions:buttons.update")
                                             }
-                                        }
-
-                                        // Clear inputs of property field values of other authentication types.
-                                        switch (authenticationType) {
-                                            case AuthenticationType.BASIC:
-                                                delete values.accessTokenAuthProperty;
-                                                delete values.headerAuthProperty;
-                                                delete values.valueAuthProperty;
-
-                                                break;
-                                            case AuthenticationType.BEARER:
-                                                delete values.usernameAuthProperty;
-                                                delete values.passwordAuthProperty;
-                                                delete values.headerAuthProperty;
-                                                delete values.valueAuthProperty;
-
-                                                break;
-                                            case AuthenticationType.API_KEY:
-                                                delete values.usernameAuthProperty;
-                                                delete values.passwordAuthProperty;
-                                                delete values.accessTokenAuthProperty;
-
-                                                break;
-                                            case AuthenticationType.NONE:
-                                                delete values.usernameAuthProperty;
-                                                delete values.passwordAuthProperty;
-                                                delete values.headerAuthProperty;
-                                                delete values.valueAuthProperty;
-                                                delete values.accessTokenAuthProperty;
-
-                                                break;
-                                            default:
-
-                                                break;
-                                        }
-
-                                        return null;
-                                    } }
-                                </FormSpy>
-                            </form>
+                                        </Button>
+                                    ) }
+                                </div>
+                            </EmphasizedSegment>
                         ) }
                     >
                     </FinalForm>

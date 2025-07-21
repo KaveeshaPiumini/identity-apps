@@ -95,6 +95,20 @@ export interface PreUpdatePasswordActionInterface extends ActionInterface {
      * Password sharing type of the action.
      */
     passwordSharing: PasswordSharing;
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
+}
+
+/**
+ * Pre Update Profile Action configuration.
+ */
+export interface PreUpdateProfileActionInterface extends ActionInterface {
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
 }
 
 /**
@@ -234,6 +248,17 @@ export interface PreUpdatePasswordActionResponseInterface extends ActionResponse
      * Password sharing type of the action.
      */
     passwordSharing: PasswordSharing;
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
+}
+
+export interface PreUpdateProfileActionResponseInterface extends ActionResponseInterface {
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
 }
 
 /**
@@ -299,6 +324,20 @@ export interface PreUpdatePasswordActionUpdateInterface extends ActionUpdateInte
      * Password sharing type of the updating action.
      */
     passwordSharing?: PasswordSharingUpdate;
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
+}
+
+/**
+ * Pre Update Profile Action Update configuration.
+ */
+export interface PreUpdateProfileActionUpdateInterface extends ActionUpdateInterface {
+    /**
+     * User attribute list.
+     */
+    attributes?: string[];
 }
 
 /**
@@ -421,6 +460,20 @@ export interface PreUpdatePasswordActionConfigFormPropertyInterface extends Acti
      * Certificate of the Password.
      */
     certificate: string;
+    /**
+     * User attribute list.
+     */
+    attributes: string[];
+}
+
+/**
+ * Pre Update Profile Action config form property Interface.
+ */
+export interface PreUpdateProfileActionConfigFormPropertyInterface extends ActionConfigFormPropertyInterface {
+    /**
+     * User attribute list.
+     */
+    attributes: string[];
 }
 
 /**

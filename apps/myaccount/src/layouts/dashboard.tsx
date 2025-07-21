@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2022-2025, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -21,7 +21,13 @@ import AppShell from "@oxygen-ui/react/AppShell";
 import Container from "@oxygen-ui/react/Container";
 import Navbar from "@oxygen-ui/react/Navbar";
 import Snackbar from "@oxygen-ui/react/Snackbar";
-import { AlertInterface, AnnouncementBannerInterface, ChildRouteInterface, RouteInterface } from "@wso2is/core/models";
+import useUserPreferences from "@wso2is/common.ui.v1/hooks/use-user-preferences";
+import {
+    AlertInterface,
+    AnnouncementBannerInterface,
+    ChildRouteInterface,
+    RouteInterface
+} from "@wso2is/core/models";
 import { initializeAlertSystem } from "@wso2is/core/store";
 import {
     RouteUtils as CommonRouteUtils,
@@ -29,8 +35,22 @@ import {
     RouteUtils,
     URLUtils
 } from "@wso2is/core/utils";
-import { I18n, I18nModuleConstants, LanguageChangeException } from "@wso2is/i18n";
-import { Alert, ContentLoader, EmptyPlaceholder, ErrorBoundary, LinkButton } from "@wso2is/react-components";
+import {
+    I18n,
+    I18nModuleConstants,
+    LanguageChangeException,
+    LocaleMeta,
+    SupportedLanguagesMeta,
+    TextDirection
+} from "@wso2is/i18n";
+import {
+    Alert,
+    ContentLoader,
+    EmptyPlaceholder,
+    ErrorBoundary,
+    LinkButton,
+    useMediaContext
+} from "@wso2is/react-components";
 import isEmpty from "lodash-es/isEmpty";
 import kebabCase from "lodash-es/kebabCase";
 import moment from "moment";
@@ -43,6 +63,7 @@ import { Redirect, Route, RouteComponentProps, Switch } from "react-router-dom";
 import { Dispatch } from "redux";
 import { fetchApplications } from "../api";
 import { Header, ProtectedRoute } from "../components";
+import { SystemNotificationAlert } from "../components/shared/system-notification-alert";
 import { getDashboardLayoutRoutes, getEmptyPlaceholderIllustrations } from "../configs";
 import { AppConstants, UIConstants } from "../constants";
 import { history } from "../helpers";
@@ -73,7 +94,12 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
     const { location } = props;
 
     const { t } = useTranslation();
+
     const dispatch: Dispatch = useDispatch();
+
+    const { isMobileViewport } = useMediaContext();
+
+    const { setPreferences, leftNavbarCollapsed } = useUserPreferences();
 
     const alert: AlertInterface = useSelector((state: AppState) => state.global.alert);
     const alertSystem: System = useSelector((state: AppState) => state.global.alertSystem);
@@ -83,24 +109,17 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
     const [ selectedRoute, setSelectedRoute ] = useState<RouteInterface | ChildRouteInterface>(
         getDashboardLayoutRoutes()[ 0 ]
     );
-    const [ mobileSidePanelVisibility, setMobileSidePanelVisibility ] = useState<boolean>(true);
     const [ announcement, setAnnouncement ] = useState<AnnouncementBannerInterface>();
-
     const [ showAnnouncement, setShowAnnouncement ] = useState<boolean>(true);
     const [ dashboardLayoutRoutes, setDashboardLayoutRoutes ] = useState<RouteInterface[]>(getDashboardLayoutRoutes());
-
-    /**
-     * Callback for side panel hamburger click.
-     */
-    const handleSidePanelToggleClick = (): void => {
-        setMobileSidePanelVisibility(!mobileSidePanelVisibility);
-    };
+    const allowedScopes: string = useSelector((state: AppState) => state?.authenticationInformation?.scope);
 
     useEffect(() => {
         const localeCookie: string = CookieStorageUtils.getItem("ui_lang");
 
         if (localeCookie) {
             handleLanguageSwitch(localeCookie.replace("_", "-"));
+            handleDirection(localeCookie.replace("_", "-"));
         }
     }, []);
 
@@ -125,6 +144,26 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
         );
     };
 
+    const supportedI18nLanguages: SupportedLanguagesMeta = useSelector(
+        (state: AppState) => state?.global?.supportedI18nLanguages
+    );
+
+    /**
+     * Handles the direction of the document based on the selected language.
+     *
+     * @param language - Selected language.
+     */
+    const handleDirection = (language: string): void => {
+
+        const supportedLanguage: LocaleMeta = supportedI18nLanguages[language];
+        const direction: string = supportedLanguage?.direction;
+
+        if (direction === TextDirection.RTL) {
+            document.documentElement.setAttribute(I18nModuleConstants.TEXT_DIRECTION_ATTRIBUTE, TextDirection.RTL);
+        } else {
+            document.documentElement.setAttribute(I18nModuleConstants.TEXT_DIRECTION_ATTRIBUTE, TextDirection.LTR);
+        }
+    };
 
     /**
      * Performs pre-requisites for the side panel items visibility.
@@ -160,15 +199,28 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
         }
 
         const routes: RouteInterface[] = getDashboardLayoutRoutes().filter((route: RouteInterface) => {
-            if (route.path === AppConstants.getPaths().get("APPLICATIONS") && !isApplicationsPageVisible) {
-                return false;
+
+            // Impersonation scope would indicate an impersonated session.
+            if (allowedScopes.includes("internal_user_impersonate")
+                    || allowedScopes.includes("internal_org_user_impersonate")) {
+                if (route.path === "/") {
+                    // During an impersonation, default route should redirect to the applications page.
+                    route.redirectTo = AppConstants.getPaths().get("APPLICATIONS");
+                } else if (route.path != AppConstants.getPaths().get("APPLICATIONS")) {
+                    // During an impersonation, only the application list page should be visible.
+                    return false;
+                }
+            } else {
+                if (route.path === AppConstants.getPaths().get("APPLICATIONS") && !isApplicationsPageVisible) {
+                    return false;
+                }
             }
 
             return route;
         });
 
         setDashboardLayoutRoutes(filterRoutes(routes, config.ui?.features));
-    }, [ AppConstants.getTenantQualifiedAppBasename(), config, isApplicationsPageVisible ]);
+    }, [ AppConstants.getTenantQualifiedAppBasename(), config, isApplicationsPageVisible, allowedScopes ]);
 
     /**
      * On location change, update the selected route.
@@ -210,6 +262,13 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
 
     const handleAnnouncementDismiss = () => {
         setShowAnnouncement(false);
+    };
+
+    /**
+     * Callback for side panel hamburger click.
+     */
+    const handleSidePanelToggleClick = (): void => {
+        setPreferences({ leftNavbarCollapsed: !leftNavbarCollapsed });
     };
 
     return (
@@ -259,7 +318,7 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
                             }
                         ] }
                         fill={ "solid" }
-                        open={ mobileSidePanelVisibility }
+                        open={ isMobileViewport ? false : !leftNavbarCollapsed }
                         collapsible={ false }
                     />
                 ) }
@@ -285,6 +344,7 @@ export const DashboardLayout: FunctionComponent<PropsWithChildren<DashboardLayou
                         ) }
                     >
                         <Suspense fallback={ <ContentLoader /> }>
+                            <SystemNotificationAlert />
                             <Switch>
                                 { dashboardLayoutRoutes.map((route: RouteInterface, index: number) =>
                                     route.redirectTo

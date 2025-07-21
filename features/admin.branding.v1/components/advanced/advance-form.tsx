@@ -17,7 +17,8 @@
  */
 
 import Code from "@oxygen-ui/react/Code";
-import { useGetCurrentOrganizationType } from "@wso2is/admin.organizations.v1/hooks/use-get-organization-type";
+import useGetRegistrationFlowBuilderEnabledStatus
+    from "@wso2is/admin.server-configurations.v1/api/use-get-self-registration-enabled-status";
 import { BrandingPreferenceInterface } from "@wso2is/common.branding.v1/models";
 import { IdentifiableComponentInterface } from "@wso2is/core/models";
 import { URLUtils } from "@wso2is/core/utils";
@@ -94,12 +95,14 @@ export const AdvanceForm: FunctionComponent<AdvanceFormPropsInterface> = forward
 
     const { t } = useTranslation();
 
-    const { isFirstLevelOrganization, isSuperOrganization  } = useGetCurrentOrganizationType();
-
     const [ privacyPolicyURL, setPrivacyPolicyURL ] = useState<string>(initialValues.urls.privacyPolicyURL);
     const [ termsOfUseURL, setTermsOfUseURL ] = useState<string>(initialValues.urls.termsOfUseURL);
     const [ cookiePolicyURL, setCookiePolicyURL ] = useState<string>(initialValues.urls.cookiePolicyURL);
+    const [ recoveryPortalURL, setRecoveryPortalURL ] = useState<string>(initialValues.urls.recoveryPortalURL);
     const [ selfSignUpURL, setSelfSignUpURL ] = useState<string>(initialValues.urls.selfSignUpURL);
+
+    const { data: isDynamicPortalEnabled } = useGetRegistrationFlowBuilderEnabledStatus();
+
 
     /**
      * Broadcast values to the outside when internals change.
@@ -112,6 +115,7 @@ export const AdvanceForm: FunctionComponent<AdvanceFormPropsInterface> = forward
                 ...initialValues.urls,
                 cookiePolicyURL: cookiePolicyURL,
                 privacyPolicyURL: privacyPolicyURL,
+                recoveryPortalURL: recoveryPortalURL,
                 selfSignUpURL: selfSignUpURL,
                 termsOfUseURL: termsOfUseURL
             }
@@ -264,40 +268,70 @@ export const AdvanceForm: FunctionComponent<AdvanceFormPropsInterface> = forward
                 data-testid={ `${ componentId }-cookie-policy-url` }
                 validation={ validateTemplatableURLs }
             />
-            { (isFirstLevelOrganization() || isSuperOrganization()) && (
-                <Field.Input
-                    ariaLabel="Branding preference self signup URL"
-                    inputType="url"
-                    name="urls.selfSignUpURL"
-                    label={ t("extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.label") }
-                    placeholder={
-                        t("extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.placeholder")
-                    }
-                    hint={ (
-                        <Trans
-                            i18nKey="extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.hint"
-                        >
-                        Link to your organization&apos;s Self Signup webpage. You can use placeholders like
-                            <Code>&#123;&#123;lang&#125;&#125;</Code>, <Code>&#123;&#123;country&#125;&#125;</Code>,
-                        or <Code>&#123;&#123;locale&#125;&#125;</Code> to customize the URL for different
-                        regions or languages.
-                        </Trans>
-                    ) }
-                    required={ false }
-                    value={ initialValues.urls.selfSignUpURL }
-                    readOnly={ readOnly }
-                    maxLength={
-                        BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MAX_LENGTH
-                    }
-                    minLength={
-                        BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MIN_LENGTH
-                    }
-                    listen={ (value: string) =>  setSelfSignUpURL(value) }
-                    width={ 16 }
-                    data-testid={ `${ componentId }-self-signup-url` }
-                    validation={ validateTemplatableURLs }
-                />
-            ) }
+            { isDynamicPortalEnabled && ( <Field.Input
+                ariaLabel="Branding preference recovery portal URL"
+                inputType="url"
+                name="urls.recoveryPortalURL"
+                label={ t("extensions:develop.branding.forms.advance.links.fields.recoveryPortalURL.label") }
+                placeholder={
+                    t("extensions:develop.branding.forms.advance.links.fields.recoveryPortalURL.placeholder")
+                }
+                hint={ (
+                    <Trans
+                        i18nKey="extensions:develop.branding.forms.advance.links.fields.recoveryPortalURL.hint"
+                    >
+                    Link to your organization&apos;s Recovery portal. You can use placeholders like
+                        <Code>&#123;&#123;lang&#125;&#125;</Code>, <Code>&#123;&#123;country&#125;&#125;</Code>,
+                    or <Code>&#123;&#123;locale&#125;&#125;</Code> to customize the URL for different
+                    regions or languages.
+                    </Trans>
+                ) }
+                required={ false }
+                value={ initialValues.urls.recoveryPortalURL }
+                readOnly={ readOnly }
+                maxLength={
+                    BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MAX_LENGTH
+                }
+                minLength={
+                    BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MIN_LENGTH
+                }
+                listen={ (value: string) =>  setRecoveryPortalURL(value) }
+                width={ 16 }
+                data-testid={ `${ componentId }-recovery-portal-url` }
+                validation={ validateTemplatableURLs }
+            /> ) }
+            <Field.Input
+                ariaLabel="Branding preference self signup URL"
+                inputType="url"
+                name="urls.selfSignUpURL"
+                label={ t("extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.label") }
+                placeholder={
+                    t("extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.placeholder")
+                }
+                hint={ (
+                    <Trans
+                        i18nKey="extensions:develop.branding.forms.advance.links.fields.selfSignUpURL.hint"
+                    >
+                    Link to your organization&apos;s Self Signup webpage. You can use placeholders like
+                        <Code>&#123;&#123;lang&#125;&#125;</Code>, <Code>&#123;&#123;country&#125;&#125;</Code>,
+                    or <Code>&#123;&#123;locale&#125;&#125;</Code> to customize the URL for different
+                    regions or languages.
+                    </Trans>
+                ) }
+                required={ false }
+                value={ initialValues.urls.selfSignUpURL }
+                readOnly={ readOnly }
+                maxLength={
+                    BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MAX_LENGTH
+                }
+                minLength={
+                    BrandingPreferencesConstants.ADVANCE_FORM_FIELD_CONSTRAINTS.COOKIE_POLICY_URL_MIN_LENGTH
+                }
+                listen={ (value: string) =>  setSelfSignUpURL(value) }
+                width={ 16 }
+                data-testid={ `${ componentId }-self-signup-url` }
+                validation={ validateTemplatableURLs }
+            />
         </Form>
     );
 });

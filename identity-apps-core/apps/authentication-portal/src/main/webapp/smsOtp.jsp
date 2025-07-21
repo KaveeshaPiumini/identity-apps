@@ -1,5 +1,5 @@
 <%--
-  ~ Copyright (c) 2022-2024, WSO2 LLC. (https://www.wso2.com).
+  ~ Copyright (c) 2022-2025, WSO2 LLC. (https://www.wso2.com).
   ~
   ~ WSO2 LLC. licenses this file to you under the Apache License,
   ~ Version 2.0 (the "License"); you may not use this file except
@@ -55,9 +55,11 @@
 
     String authenticators = Encode.forUriComponent(request.getParameter("authenticators"));
     int otpLength = 6;
+    boolean isOnlyNumeric = true;
     if (authenticators.equals(LOCAL_SMS_OTP_AUTHENTICATOR_ID)) {
         try {
             otpLength = Integer.parseInt(AuthenticatorUtils.getSmsAuthenticatorConfig("SmsOTP.OTPLength", tenantDomain));
+            isOnlyNumeric = AuthenticatorUtils.getSmsAuthenticatorConfig("SmsOTP.OtpRegex.UseNumericChars", tenantDomain).equals("true");
         } catch (Exception e) {
             // Exception is caught and ignored. otpLength will be kept as 6.
         }
@@ -84,6 +86,8 @@
         }
     }
 %>
+
+<% request.setAttribute("pageName", "sms-otp"); %>
 
 <html>
     <head>
@@ -113,7 +117,7 @@
         <![endif]-->
     </head>
 
-    <body class="login-portal layout sms-otp-portal-layout">
+    <body class="login-portal layout sms-otp-portal-layout" data-page="<%= request.getAttribute("pageName") %>">
 
         <% if (new File(getServletContext().getRealPath("extensions/timeout.jsp")).exists()) { %>
             <jsp:include page="extensions/timeout.jsp"/>
@@ -204,7 +208,7 @@
                                         %>
                                             <div class="field mt-5">
                                                 <input
-                                                    class="text-center p-3"
+                                                    class="text-center p-1 pb-3 pt-3"
                                                     id=<%= currentStringIndex %>
                                                     name=<%= currentStringIndex %>
                                                     onkeyup="movetoNext(this, '<%= nextStringIndex %>', '<%= previousStringIndex %>')"
@@ -212,13 +216,16 @@
                                                     placeholder="·"
                                                     autofocus
                                                     maxlength="1"
+                                                    autocomplete="off"
+                                                    type="text"
+                                                    inputmode=<%= isOnlyNumeric ? "numeric" : "text" %>
                                                 >
                                             </div>
                                         <% } %>
                                     </div>
                                 <% } else { %>
                                     <div class="ui fluid icon input addon-wrapper">
-                                        <input type="text" id='OTPCode' name="OTPcode" size='30'/>
+                                        <input type="text" id='OTPCode' name="OTPcode" size='30' autocomplete="off"/>
                                         <i id="password-eye" class="eye icon right-align password-toggle slash" onclick="showOTPCode()"></i>
                                     </div>
                                 <% } %>
@@ -277,7 +284,7 @@
 
                                     <%
                                         String multiOptionURI = request.getParameter("multiOptionURI");
-                                        if (isMultiAuthAvailable(multiOptionURI)) {
+                                        if (isMultiAuthAvailable(multiOptionURI) && AuthenticationEndpointUtil.isValidMultiOptionURI(multiOptionURI)) {
                                     %>
                                         <div class="ui divider hidden"></div>
                                         <a
@@ -377,17 +384,49 @@
 
                 // Get pasted data via clipboard API
                 clipboardData = e.clipboardData || window.clipboardData;
-                value = clipboardData.getData('Text');
-                const reg = new RegExp(/^\d+$/);
-                if (reg.test(value)) {
-                    for (n = 0; n < 6; ++n) {
+                value = clipboardData.getData('Text').trim();
+                
+                var isValid = true;
+                var firstInput = document.getElementById('pincode-1');
+                var isOnlyNumeric = firstInput && firstInput.getAttribute('inputmode') === 'numeric';
+                
+                if (isOnlyNumeric) {
+                    isValid = /^\d+$/.test(value);
+                } else {
+                    isValid = value.length > 0;
+                }
+                
+                if (isValid) {
+                    value = value.substring(0, otpLength);
+                    
+                    for (let n = 0; n < value.length && n < otpLength; ++n) {
                         $("#pincode-" + (n+1)).val(value[n]);
-                        $("#pincode-" + (n+1)).focus();
+                    }
+                    
+                    if (value.length < otpLength) {
+                        $("#pincode-" + (value.length + 1)).focus();
+                    } else {
+                        $("#pincode-" + otpLength).focus();
+                        var hasNullDigit = false;
+                        for (let i = 1; i <= otpLength; i++) {
+                            if (!$("#pincode-" + i).val()) {
+                                hasNullDigit = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!hasNullDigit) {
+                            document.getElementById("subButton").disabled = false;
+                        }
                     }
                 }
             }
 
-           document.getElementById('pincode-1') ? document.getElementById('pincode-1').addEventListener('paste', handlePaste) : null;
+            for (let i = 1; i <= otpLength; i++) {
+                if (document.getElementById('pincode-' + i)) {
+                    document.getElementById('pincode-' + i).addEventListener('paste', handlePaste);
+                }
+            }
 
             $(document).ready(function () {
                 $.fn.preventDoubleSubmission = function() {

@@ -36,7 +36,7 @@ import { ApplicationTabIDs, applicationConfig, userstoresConfig } from "@wso2is/
 import FeatureFlagLabel from "@wso2is/admin.feature-gate.v1/components/feature-flag-label";
 import FeatureFlagConstants from "@wso2is/admin.feature-gate.v1/constants/feature-flag-constants";
 import { OrganizationType } from "@wso2is/admin.organizations.v1/constants";
-import { useUserStores } from "@wso2is/admin.userstores.v1/api";
+import useUserStores from "@wso2is/admin.userstores.v1/hooks/use-user-stores";
 import { UserStoreDropdownItem, UserStoreListItem } from "@wso2is/admin.userstores.v1/models";
 import {
     AlertLevels,
@@ -78,7 +78,10 @@ import { DiscoverableGroupRenderOption } from "./discoverable-group-render-optio
 import { useMyAccountStatus } from "../../../api/application";
 import { useGetGroupsMetadata } from "../../../api/use-get-groups-metadata";
 import { ApplicationManagementConstants } from "../../../constants/application-management";
-import { ApplicationInterface, DiscoverableGroupInterface, GroupMetadataInterface } from "../../../models/application";
+import {
+    ApplicationInterface, ApplicationTemplateIdTypes, ApplicationTemplateListItemInterface,
+    DiscoverableGroupInterface, GroupMetadataInterface
+} from "../../../models/application";
 import "./general-details-form.scss";
 
 /**
@@ -141,6 +144,7 @@ interface GeneralDetailsFormPopsInterface extends TestableComponentInterface, Id
      * Is the Branding Section Hidden?
      */
     isBrandingSectionHidden?: boolean;
+    template?: ApplicationTemplateListItemInterface;
 }
 
 /**
@@ -210,10 +214,7 @@ const DISCOVERABLE_GROUPS_RADIO_OPTIONS: RadioChild[] = [
  * @returns Functional component.
  */
 export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterface> = (
-    props: GeneralDetailsFormPopsInterface
-): ReactElement => {
-
-    const {
+    {
         appId,
         name,
         description,
@@ -227,10 +228,12 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
         isSubmitting,
         isManagementApp,
         application,
+        template,
         isBrandingSectionHidden,
-        [ "data-testid" ]: testId,
-        [ "data-componentid" ]: componentId
-    } = props;
+        [ "data-testid" ]: testId = "application-general-settings-form",
+        [ "data-componentid" ]: componentId = "application-general-settings-form"
+    }: GeneralDetailsFormPopsInterface
+): ReactElement => {
 
     const { t } = useTranslation();
     const dispatch: Dispatch = useDispatch();
@@ -261,20 +264,31 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
     const isSubOrg: boolean = window[ "AppUtils" ].getConfig().organizationName;
     const isSubOrganizationType: boolean = orgType === OrganizationType.SUBORGANIZATION;
 
+    const [ isMcpClientApplication, setIsMcpClientApplication ] = useState<boolean>();
+
+    useEffect(() => {
+        if (template?.[ApplicationManagementConstants.ORIGINAL_TEMPLATE_ID_PROPERTY] ===
+            ApplicationTemplateIdTypes.MCP_CLIENT_APPLICATION) {
+            setIsMcpClientApplication(true);
+        }
+    }, [ template ]);
+
     const {
         data: myAccountStatus,
         isLoading: isMyAccountStatusLoading
     } = useMyAccountStatus(!isSubOrg && applicationConfig?.advancedConfigurations?.showMyAccountStatus);
     const {
-        data: userStores,
-        isLoading: isUserStoresLoading,
-        error: userStoreListFetchError
-    } = useUserStores(null);
+        userStoresList: userStores,
+        isLoading: isUserStoresLoading
+    } = useUserStores();
+
     const {
         data: groupsList,
         isLoading: isGroupsListLoading,
         error: groupsListFetchError
     } = useGetGroupsMetadata(selectedUserStoreDomain, searchTerm);
+
+    const isSharedApp: boolean = application?.advancedConfigurations?.fragment || false;
 
     /**
      * Handle the discoverable group option based on the application configuration.
@@ -301,19 +315,17 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
             value: userstoresConfig?.primaryUserstoreName
         } ];
 
-        if (!userStores) {
-            return storeOptions;
+        if (userStores?.length > 0) {
+            userStores.forEach((store: UserStoreListItem, index: number) => {
+                if (store?.name?.toUpperCase() !== userstoresConfig?.primaryUserstoreName && store?.enabled) {
+                    storeOptions.push({
+                        key: index,
+                        text: store.name,
+                        value: store.name
+                    });
+                }
+            });
         }
-
-        userStores.forEach((store: UserStoreListItem, index: number) => {
-            if (store?.name?.toUpperCase() !== userstoresConfig?.primaryUserstoreName && store?.enabled) {
-                storeOptions.push({
-                    key: index,
-                    text: store.name,
-                    value: store.name
-                });
-            }
-        });
 
         return storeOptions;
     }, [ userStores ]);
@@ -333,21 +345,6 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
         );
         setSelectedGroupsFromUserStore(allSelectedGroupsList);
     }, [ application ]);
-
-    /**
-     * Handle the error scenario of fetching user stores.
-     */
-    useEffect(() => {
-        if (!userStoreListFetchError) {
-            return;
-        }
-
-        dispatch(addAlert({
-            description: t("userstores:notifications.fetchUserstores.genericError.description"),
-            level: AlertLevels.ERROR,
-            message: t("userstores:notifications.fetchUserstores.genericError.message")
-        }));
-    }, [ userStoreListFetchError ]);
 
     /**
      * Handle the error scenario of fetching groups.
@@ -581,7 +578,7 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                             </Grid.Column>
                         </Grid.Row>
                     ) }
-                    { !UIConfig.systemAppsIdentifiers.includes(name) && !isSubOrganizationType && (
+                    { !UIConfig.systemAppsIdentifiers.includes(name) && !isSharedApp && (
                         <Grid.Row columns={ 1 }>
                             <Grid.Column mobile={ 16 } tablet={ 16 } computer={ 16 }>
                                 <Field.Input
@@ -598,7 +595,7 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                                             ".placeholder")
                                     }
                                     value={ name }
-                                    readOnly={ readOnly || isSubOrganizationType }
+                                    readOnly={ readOnly }
                                     validation ={ (value: string) => validateName(value.toString().trim()) }
                                     maxLength={
                                         ApplicationManagementConstants.FORM_FIELD_CONSTRAINTS.APP_NAME_MAX_LENGTH }
@@ -610,7 +607,8 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                         </Grid.Row>
                     ) }
                     {
-                        name !== ApplicationManagementConstants.MY_ACCOUNT_APP_NAME && !isSubOrganizationType && (
+                        name !== ApplicationManagementConstants.MY_ACCOUNT_APP_NAME &&
+                        !isSharedApp && (
                             <Grid.Row columns={ 1 }>
                                 <Grid.Column mobile={ 16 } tablet={ 16 } computer={ 16 }>
                                     <Field.Textarea
@@ -638,7 +636,7 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                         )
                     }
                     {
-                        !isSubOrganizationType && !hiddenFields?.includes("imageUrl") && (
+                        !isSharedApp && !hiddenFields?.includes("imageUrl") && (
                             <Grid.Row columns={ 1 } data-componentid="application-edit-general-details-form-image-url">
                                 <Grid.Column mobile={ 16 } tablet={ 16 } computer={ 16 }>
                                     <Field.Input
@@ -670,7 +668,10 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                         )
                     }
                     {
-                        !isM2MApplication && isMyAccountEnabled && !isSubOrganizationType && (
+                        !isM2MApplication &&
+                        isMyAccountEnabled &&
+                        !isSubOrganizationType &&
+                        !isMcpClientApplication && (
                             <Grid.Row columns={ 1 }>
                                 <Grid.Column mobile={ 16 } tablet={ 16 } computer={ 16 }>
                                     { !isSubOrganizationType && <Divider /> }
@@ -742,7 +743,10 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                         )
                     }
                     {
-                        !isM2MApplication && isMyAccountEnabled && !isSubOrganizationType && (
+                        !isM2MApplication &&
+                        isMyAccountEnabled &&
+                        !isSubOrganizationType &&
+                        !isMcpClientApplication && (
                             <Grid.Row columns={ 16 } className="discoverable-groups">
                                 <Grid.Column mobile={ 16 } tablet={ 16 } computer={ 16 }>
                                     <Heading as="h6">
@@ -768,7 +772,8 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                                                 checked={ discoverableGroupOption === option.value }
                                                 listen={ () => setDiscoverableGroupOption(option.value) }
                                                 readOnly={ readOnly }
-                                                data-componentid={ `${ componentId }-discoverable-group-radio-option` }
+                                                data-componentid={ `${ componentId }-discoverable-group-radio-` +
+                                                    `option-${ option.value }` }
                                                 disabled={ !isDiscoverable }
                                             />
                                         ))
@@ -814,7 +819,8 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                                                 loading={ isGroupsListLoading }
                                                 options={ groupsList ?? [] }
                                                 value={ selectedGroupsFromUserStore[selectedUserStoreDomain] ?? [] }
-                                                data-componentid={ `${ componentId }-group-search-text-input` }
+                                                data-componentid={ `${ componentId }-discoverable-group` +
+                                                    "-search-text-input" }
                                                 getOptionLabel={ (group: GroupMetadataInterface) => group?.name }
                                                 renderInput={ (params: AutocompleteRenderInputParams) => (
                                                     <TextField
@@ -875,6 +881,8 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                                                         selected={ selected }
                                                         displayName={ option.name }
                                                         userStore={ selectedUserStoreDomain }
+                                                        data-componentid={ `${ componentId }-discoverable-group-` +
+                                                            `option-${ option.name }` }
                                                         renderOptionProps={ props }
                                                     />
                                                 ) }
@@ -931,7 +939,7 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                             {
                                 (!isBrandingSectionHidden &&
                                 !isM2MApplication &&
-                                orgType !== OrganizationType.SUBORGANIZATION) && <Divider />
+                                !isSharedApp ) && <Divider />
                             }
                             {
                                 (!isBrandingSectionHidden && !isM2MApplication) && (
@@ -980,8 +988,7 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
                 loading={ isSubmitting }
                 label={ t("common:update") }
                 hidden={
-                    (isSubOrganizationType && !isDiscoverable) ||
-                    !hasRequiredScope || (
+                    isSharedApp || !hasRequiredScope || (
                         readOnly
                         && applicationConfig.generalSettings.getFieldReadOnlyStatus(
                             application, "ACCESS_URL"
@@ -991,11 +998,4 @@ export const GeneralDetailsForm: FunctionComponent<GeneralDetailsFormPopsInterfa
             />
         </Form>
     );
-};
-
-/**
- * Default props for the applications general settings form.
- */
-GeneralDetailsForm.defaultProps = {
-    "data-testid": "application-general-settings-form"
 };

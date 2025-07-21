@@ -65,6 +65,7 @@ export interface CommonNS {
     dangerZone: string;
     darkMode: string;
     delete: string;
+    deprecated: string;
     description: string;
     deviceModel: string;
     docs: string;
@@ -126,6 +127,7 @@ export interface CommonNS {
     priority: string;
     privacy: string;
     properties: string;
+    publish: string;
     ready: string;
     regenerate: string;
     register: string;
@@ -190,4 +192,9 @@ export interface CommonNS {
     verified: string;
     primary: string;
     makePrimary: string;
+    asyncOperationErrorMessage: {
+        description: string;
+        message: string;
+    },
+    saveDraft: string;
 }

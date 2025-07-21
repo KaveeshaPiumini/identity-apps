@@ -275,7 +275,13 @@ const ApplicationEditPage: FunctionComponent<ApplicationEditPageInterface> = (
 
                 applicationData.templateId = relatedOldTemplateId;
 
-                template = getTemplate(relatedOldTemplateId);
+                template = cloneDeep(getTemplate(relatedOldTemplateId));
+
+                if (extensionTemplate?.id) {
+                    template[ApplicationManagementConstants.ORIGINAL_TEMPLATE_ID_PROPERTY] = extensionTemplate?.id;
+                    applicationData[ApplicationManagementConstants.ORIGINAL_TEMPLATE_ID_PROPERTY] =
+                        extensionTemplate?.id;
+                }
             }
         }
 

@@ -208,6 +208,16 @@ export const CONSUMER_USERSTORE: string = "DEFAULT";
 export const PRIMARY_USERSTORE: string = "PRIMARY";
 
 /**
+ * Name of the agent userstore.
+ */
+export const AGENT_USERSTORE: string = "AGENT";
+
+/**
+ * ID of the agent userstore.
+ */
+export const AGENT_USERSTORE_ID: string = "QUdFTlQ";
+
+/**
  * Character limit for userstore name.
  */
 export const USERSTORE_NAME_CHARACTER_LIMIT: number = 50;
@@ -249,3 +259,23 @@ export enum RemoteUserStoreManagerType {
 export const ON_PREM_READ_ONLY_USER_STORE_TYPE_NAMES: string[] = [
     "UniqueIDReadOnlyLDAPUserStoreManager"
 ];
+
+/**
+ * Enum containing the icons a test connection button can have
+ */
+export enum TestButtonIcon {
+    TESTING = "spinner",
+    FAILED = "remove",
+    SUCCESSFUL = "check",
+    INITIAL = "bolt"
+}
+
+/**
+ * Enum containing the colors the test button can have
+ */
+export enum TestButtonColor {
+    TESTING,
+    INITIAL,
+    SUCCESSFUL,
+    FAILED
+}

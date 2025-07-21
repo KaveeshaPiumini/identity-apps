@@ -1,5 +1,5 @@
 <%--
-  ~ Copyright (c) 2021-2023, WSO2 LLC. (https://www.wso2.com).
+  ~ Copyright (c) 2021-2025, WSO2 LLC. (https://www.wso2.com).
   ~
   ~ WSO2 LLC. licenses this file to you under the Apache License,
   ~ Version 2.0 (the "License"); you may not use this file except
@@ -261,7 +261,7 @@
 
 </script>
 
-<form class="ui large form" action="<%= Encode.forHtmlAttribute(loginFormActionURL) %>" method="post" id="identifierForm">
+<form class="ui large form" action="<%= Encode.forHtmlAttribute(loginFormActionURL) %>" method="post" id="identifierForm" novalidate>
     <%
         if (loginFormActionURL.equals(samlssoURL) || loginFormActionURL.equals(oauth2AuthorizeURL)) {
     %>
@@ -386,7 +386,7 @@ if (!StringUtils.equals("CONSOLE",clientId)
                 <% if(StringUtils.isNotBlank(selfSignUpOverrideURL)) { %>
                 href="<%=i18nLink(userLocale, selfSignUpOverrideURL)%>"
                 <% } else { %>
-                href="<%=StringEscapeUtils.escapeHtml4(getRegistrationUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, urlParameters))%>"
+                href="<%=StringEscapeUtils.escapeHtml4(getRegistrationPortalUrl(accountRegistrationEndpointContextURL, srURLEncodedURL, urlParameters))%>"
                 <% } %>
                 target="_self"
                 class="clickable-link"
